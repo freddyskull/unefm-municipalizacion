@@ -55,7 +55,7 @@ docker compose up --build
 |----------|-----|
 | Frontend | http://localhost:5173 |
 | Backend API | http://localhost:3001/api |
-| Nginx (producción) | http://localhost:9000 |
+| Nginx (producción) | http://expediente.unefm.edu.ve (puerto 80) / http://localhost |
 
 ## Usuarios por defecto
 
