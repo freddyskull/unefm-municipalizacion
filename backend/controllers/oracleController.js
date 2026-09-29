@@ -24,6 +24,21 @@ const getIdentity = (req) => {
   return { cedula, tipoper };
 };
 
+const getOracleHealth = async (req, res) => {
+  const start = Date.now();
+  try {
+    await executeOracle('SELECT 1 AS OK FROM DUAL');
+    res.json({ connected: true, latencyMs: Date.now() - start, client: thickModeAvailable });
+  } catch (err) {
+    res.json({
+      connected: false,
+      latencyMs: Date.now() - start,
+      client: thickModeAvailable,
+      error: err.message || String(err),
+    });
+  }
+};
+
 const getEmpleados = async (req, res) => {
   if (checkOracle(res)) return;
   const cedula = String(req.query.cedula ?? '').trim();
@@ -71,20 +86,14 @@ const getContratos = async (req, res) => {
   const orderBy = String(req.query.orderBy ?? '').trim();
   const order = String(req.query.order || 'asc').toLowerCase() === 'desc' ? 'DESC' : 'ASC';
 
-  const joins = [
-    `PERSONAL.movimiento a`,
-    `PERSONAL.tipomovi b`,
-    `PERSONAL.dedicacion d`,
-    `PERSONAL.condicionper e`,
-    `PERSONAL.estadoper f`,
-    `NOMINA.ESTADOS_VENE g`,
-  ];
+  const joins = `
+      FROM PERSONAL.movimiento a
+        LEFT JOIN PERSONAL.tipomovi b ON b.codtipmovi = a.codtipmov
+        LEFT JOIN PERSONAL.dedicacion d ON a.coddedmov = d.codded
+        LEFT JOIN PERSONAL.condicionper e ON a.codcond = e.codcond
+        LEFT JOIN PERSONAL.estadoper f ON a.codest = f.codest
+        LEFT JOIN NOMINA.ESTADOS_VENE g ON a.ubigeo = g.CODIGO`;
   const conditions = [
-    `b.codtipmovi = a.codtipmov`,
-    `a.ubigeo = g.CODIGO`,
-    `a.coddedmov = d.codded`,
-    `a.codcond = e.codcond`,
-    `a.codest = f.codest`,
     `a.codtipper = :tipoper`,
     `a.cedempmov = :cedula`,
   ];
@@ -104,7 +113,6 @@ const getContratos = async (req, res) => {
     params.search = `%${search.toUpperCase()}%`;
   }
   const where = conditions.join('\n        AND ');
-  const from = joins.join(',\n      ');
 
   const SELECT_COLS = `
       a.nummov AS NOTIFICACION,
@@ -148,13 +156,13 @@ const getContratos = async (req, res) => {
     const { data, total } = await execPage(
       `
       SELECT ${SELECT_COLS}
-      FROM ${from}
+      ${joins}
       WHERE ${where}
       ORDER BY ${ORDER_COLS[orderBy] || 'a.fecautpro'} ${ORDER_COLS[orderBy] ? order : 'ASC'}
     `,
       `
       SELECT COUNT(*) AS TOTAL
-      FROM ${from}
+      ${joins}
       WHERE ${where}
     `,
       params,
@@ -165,6 +173,73 @@ const getContratos = async (req, res) => {
   } catch (err) {
     console.error('Error Oracle contratos:', err.message || err);
     res.status(500).json({ error: 'Error al consultar contratos en Oracle' });
+  }
+};
+
+const getPermisos = async (req, res) => {
+  if (checkOracle(res)) return;
+  const { limit, offset } = getPagination(req);
+  const { cedula } = getIdentity(req);
+
+  const search = String(req.query.search ?? '').trim();
+  const orderBy = String(req.query.orderBy ?? '').trim();
+  const order = String(req.query.order || 'asc').toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+
+  const conditions = [
+    `a.CEDPROFPM = :cedula`,
+    `b.CODTIPOPM = a.CODTIPPM`,
+  ];
+  const params = { cedula };
+  if (search) {
+    conditions.push(`(
+       UPPER(b.DESTIPPM) LIKE UPPER(:search)
+       OR to_char(a.FECINIPM,'dd/mm/yyyy') LIKE :search
+       OR to_char(a.FECCULPM,'dd/mm/yyyy') LIKE :search
+       OR UPPER(a.MOTIVOPM) LIKE UPPER(:search)
+       OR UPPER(a.NUMFOLIO) LIKE UPPER(:search)
+    )`);
+    params.search = `%${search.toUpperCase()}%`;
+  }
+  const where = conditions.join('\n        AND ');
+
+  const SELECT_COLS = `
+      a.CODTIPPER AS TIPO_PERSONAL,
+      b.DESTIPPM AS TIPO,
+      to_char(a.FECINIPM,'dd/mm/yyyy') AS DESDE,
+      decode(to_char(a.FECCULPM,'dd/mm/yyyy'), '01/01/1970', null, to_char(a.FECCULPM,'dd/mm/yyyy')) AS HASTA,
+      a.MOTIVOPM AS MOTIVO,
+      a.NUMFOLIO`;
+
+  const ORDER_COLS = {
+    TIPO_PERSONAL: 'a.CODTIPPER',
+    TIPO: 'b.DESTIPPM',
+    DESDE: 'a.FECINIPM',
+    HASTA: 'a.FECCULPM',
+    MOTIVO: 'a.MOTIVOPM',
+    NUMFOLIO: 'a.NUMFOLIO',
+  };
+
+  try {
+    const { data, total } = await execPage(
+      `
+      SELECT ${SELECT_COLS}
+      FROM PERSONAL.PERMISOS a, PERSONAL.TIPOPERMISO b
+      WHERE ${where}
+      ORDER BY ${ORDER_COLS[orderBy] || 'a.FECINIPM'} ${ORDER_COLS[orderBy] ? order : 'DESC'}
+    `,
+      `
+      SELECT COUNT(*) AS TOTAL
+      FROM PERSONAL.PERMISOS a, PERSONAL.TIPOPERMISO b
+      WHERE ${where}
+    `,
+      params,
+      limit,
+      offset
+    );
+    res.json({ permisos: data, total, limit, offset, page: offset / limit });
+  } catch (err) {
+    console.error('Error Oracle permisos:', err.message || err);
+    res.status(500).json({ error: 'Error al consultar permisos en Oracle' });
   }
 };
 
@@ -268,9 +343,16 @@ const getInfoTrabajador = async (req, res) => {
                (SELECT MIN(m.FECAUTPRO) FROM PERSONAL.MOVIMIENTO m WHERE m.CEDEMPMOV = a.CEDEMP AND m.CODTIPMOV = '01'),
                (SELECT MIN(fecha) FROM NOMINA.SUELDOPRESTACION WHERE CEDEMP = a.CEDEMP),
                (SELECT MIN(m.FECAUTPRO) FROM PERSONAL.MOVIMIENTO m WHERE m.CEDEMPMOV = a.CEDEMP AND m.CODTIPMOV IN ('02','03','21','24'))
-             ) as FECING
+             ) as FECING,
+             (SELECT e.DESEST
+                FROM (SELECT m2.CEDEMPMOV, m2.CODEST,
+                             ROW_NUMBER() OVER (PARTITION BY m2.CEDEMPMOV
+                                                ORDER BY m2.FECAUTPRO DESC NULLS LAST, m2.FECMOV DESC NULLS LAST) rn
+                      FROM PERSONAL.MOVIMIENTO m2) ult
+                LEFT JOIN PERSONAL.estadoper e ON e.CODEST = ult.CODEST
+                WHERE ult.CEDEMPMOV = a.CEDEMP AND ult.rn = 1) as ESTATUS
       FROM PERSONAL.EMPLEADOS a
-        INNER JOIN NOMINA.SITUAEMPNOM b ON a.CEDEMP = b.CEDEMP AND b.CODNOM = '-'
+        LEFT JOIN NOMINA.SITUAEMPNOM b ON a.CEDEMP = b.CEDEMP AND b.CODNOM = '-'
         LEFT JOIN PERSONAL.CATEGORIA cat ON b.CARGCAT = cat.CODCAT AND a.TIPOPER = '01'
         LEFT JOIN PERSONAL.MANUCARGO mc ON b.CARGCAT = mc.CODMACAR AND a.TIPOPER IN ('02','03')
         LEFT JOIN PERSONAL.DEPENDENCIA dep ON a.CODDEP = dep.CODDEP
@@ -409,10 +491,12 @@ const getNominasPago = async (req, res) => {
 
 module.exports = {
   getContratos,
+  getPermisos,
   getNominasEfectivas,
   getInfoTrabajador,
   getCargaFamiliar,
   getMeses,
   getNominasPago,
   getEmpleados,
+  getOracleHealth,
 };
