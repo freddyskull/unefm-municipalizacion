@@ -1,5 +1,5 @@
 {
-  "name": "unefm-municipalizacion-backend",
+  "name": "unefm-expediente-backend",
   "version": "1.0.0",
   "description": "API backend para sistema de municipalización UNEFM - conexión de solo lectura a PostgreSQL + auth SQLite",
   "main": "server.js",

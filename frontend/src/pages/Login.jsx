@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { LogIn, Eye, EyeOff, Building2 } from 'lucide-react'
+import { LogIn, Eye, EyeOff, ShieldCheck, FileText } from 'lucide-react'
 
 export default function Login() {
   const [username, setUsername] = useState('')
@@ -27,65 +27,117 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-unefm-900 via-unefm-800 to-unefm-950 px-4">
-      {/* Fondo decorativo */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-unefm-600/20 blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-accent-500/10 blur-3xl" />
+    <div className="exp-shell min-h-screen flex items-center justify-center px-4 py-10">
+      {/* Fondo institucional: gradiente profundo con retícula sutil */}
+      <div className="exp-backdrop" aria-hidden="true">
+        <div className="exp-orb exp-orb-a" />
+        <div className="exp-orb exp-orb-b" />
+        <div className="exp-grid" />
       </div>
 
-      <div className="relative z-10 w-full max-w-md animate-fade-in">
-        {/* Logo / Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 mb-4">
-            <Building2 className="w-8 h-8 text-white" />
+      <div className="relative z-10 w-full max-w-5xl grid lg:grid-cols-2 gap-0 exp-card">
+        {/* ---- Panel de marca ---- */}
+        <div className="hidden lg:flex flex-col justify-between p-10 exp-brand-panel">
+          <div className="exp-logo-wrap">
+            <img
+              src="/logo-unefm-horizontal.png"
+              alt="UNEFM"
+              className="exp-logo h-16 w-auto"
+            />
           </div>
-          <h1 className="text-2xl font-bold text-white">UNEFM</h1>
-          <p className="text-unefm-200 text-sm mt-1">
-            Dirección de Planificación y Desarrollo Universitario
+
+          <div>
+            <span className="exp-chip">
+              <FileText size={14} /> Sistema de Expedientes
+            </span>
+            <h1 className="text-white text-3xl font-bold leading-tight mt-5">
+              Expedientes
+            </h1>
+            <p className="text-unefm-200/90 text-sm mt-3 leading-relaxed">
+              Plataforma institucional de gestión documental
+            </p>
+          </div>
+
+          <p className="text-unefm-300/50 text-xs">
+            Universidad Nacional Experimental «Francisco de Miranda»
           </p>
         </div>
 
-        {/* Login Card */}
-        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 border border-white/20">
-          <h2 className="text-xl font-semibold text-slate-900 mb-6">Iniciar Sesión</h2>
+        {/* ---- Formulario ---- */}
+        <div className="p-8 sm:p-10 bg-white exp-form-panel">
+          {/* Logo compacto en movil: pastilla oscura para que el logo
+              blanco se lea sobre el panel blanco del formulario. */}
+          <div className="lg:hidden flex flex-col items-center text-center mb-8">
+            <div className="exp-logo-pill mb-4">
+              <img
+                src="/logo-unefm-horizontal.png"
+                alt="UNEFM"
+                className="exp-logo h-9 w-auto"
+              />
+            </div>
+            <p className="text-slate-500 text-sm">Sistema de Expedientes</p>
+          </div>
+
+          <div className="mb-7">
+            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+              Iniciar Sesión
+            </h2>
+            <p className="text-slate-500 text-sm mt-1.5">
+              Ingresa tus credenciales para acceder al sistema
+            </p>
+          </div>
 
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-danger-50 border border-danger-500/20 text-danger-500 text-sm animate-fade-in">
-              {error}
+            <div
+              role="alert"
+              className="mb-5 p-3.5 rounded-xl bg-danger-50 border border-danger-500/25 text-danger-700 text-sm flex items-start gap-2.5"
+            >
+              <ShieldCheck size={17} className="shrink-0 mt-px" />
+              <span>{error}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="label">Usuario</label>
+              <label className="label" htmlFor="usuario">
+                Usuario
+              </label>
               <input
+                id="usuario"
                 type="text"
                 className="input"
                 placeholder="Ingrese su usuario"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
                 required
                 autoFocus
               />
             </div>
 
             <div>
-              <label className="label">Contraseña</label>
+              <label className="label" htmlFor="contra">
+                Contraseña
+              </label>
               <div className="relative">
                 <input
+                  id="contra"
                   type={showPassword ? 'text' : 'password'}
-                  className="input pr-10"
+                  className="input pr-11"
                   placeholder="Ingrese su contraseña"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                   required
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="exp-eye"
                   tabIndex={-1}
+                  aria-label={
+                    showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'
+                  }
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -95,30 +147,26 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full py-2.5"
+              className="exp-submit w-full"
             >
               {loading ? (
-                <span className="flex items-center gap-2">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
+                <span className="flex items-center gap-2.5">
+                  <span className="exp-spinner" />
                   Iniciando sesión...
                 </span>
               ) : (
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2.5">
                   <LogIn size={18} />
                   Iniciar Sesión
                 </span>
               )}
             </button>
           </form>
-        </div>
 
-        {/* Footer */}
-        <p className="text-center text-unefm-300/60 text-xs mt-6">
-          Universidad Nacional Experimental "Francisco de Miranda"
-        </p>
+          <p className="text-center text-slate-400 text-xs mt-8">
+            Acceso restringido a personal autorizado
+          </p>
+        </div>
       </div>
     </div>
   )

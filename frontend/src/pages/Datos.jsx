@@ -84,7 +84,7 @@ export default function Datos() {
         <Lock size={18} className="flex-shrink-0" />
         <p>
           <strong>Base de datos en modo consulta.</strong> Puede explorar las tablas de la base de
-          datos "municipalizacion" sin riesgo de modificar información.
+          datos "expediente" sin riesgo de modificar información.
         </p>
       </div>
 

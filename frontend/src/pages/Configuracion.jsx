@@ -15,7 +15,7 @@ export default function Configuracion() {
     {
       icon: Database,
       label: 'Base de Datos',
-      value: 'municipalizacion (PostgreSQL)',
+      value: 'expediente (PostgreSQL)',
       desc: 'Conexión en modo solo lectura',
     },
     {
@@ -105,7 +105,7 @@ export default function Configuracion() {
           <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
             <div className="flex items-center gap-2">
               <Database size={16} className="text-slate-600" />
-              <span className="text-sm font-medium text-slate-700">Modificación de datos en BD municipalizacion</span>
+              <span className="text-sm font-medium text-slate-700">Modificación de datos en BD expediente</span>
             </div>
             <span className="text-xs px-2 py-1 bg-white rounded-full text-slate-600 font-medium">
               No permitido

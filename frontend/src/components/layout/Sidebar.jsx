@@ -9,24 +9,34 @@ import {
   Wallet,
   UserCircle,
   ClipboardList,
+  CalendarCheck,
 } from 'lucide-react'
 import { useState } from 'react'
 
 const menuItems = [
   { divider: 'Tablas Básicas', icon: ClipboardList },
   { path: '/contratos', icon: FileText, label: 'Contratos' },
+  { path: '/permisos', icon: CalendarCheck, label: 'Permisos y Reposos' },
   { path: '/nominas-efectivas', icon: Wallet, label: 'Nóminas Efectivas' },
   { path: '/info-trabajador', icon: UserCircle, label: 'Info. Trabajador' },
   { divider: 'Sistema', icon: Users, adminOnly: true },
   { path: '/usuarios', icon: Users, label: 'Usuarios del Sistema', adminOnly: true },
 ]
 
+const STORAGE_KEY = 'sidebar_collapsed'
+
 export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(STORAGE_KEY) === 'true')
   const { user } = useAuth()
 
   const isAdmin = user?.rol === 'admin'
   const visibleMenuItems = menuItems.filter(item => !item.adminOnly || isAdmin)
+
+  const toggleCollapsed = () => setCollapsed((c) => {
+    const next = !c
+    localStorage.setItem(STORAGE_KEY, String(next))
+    return next
+  })
 
   return (
     <aside
@@ -46,7 +56,7 @@ export default function Sidebar() {
         {!collapsed && (
           <div className="animate-fade-in">
             <h2 className="font-bold text-sm leading-tight">UNEFM</h2>
-            <p className="text-[10px] text-unefm-400 leading-tight">Municipalización</p>
+            <p className="text-[10px] text-unefm-400 leading-tight">Expedientes</p>
           </div>
         )}
       </div>
@@ -112,7 +122,7 @@ export default function Sidebar() {
 
       {/* Collapse Toggle */}
       <button
-        onClick={() => setCollapsed(!collapsed)}
+        onClick={toggleCollapsed}
         className="p-3 border-t border-unefm-800/50 text-unefm-400 hover:text-white hover:bg-white/5 transition-all"
       >
         <div className="flex items-center justify-center gap-2">

@@ -70,7 +70,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-xs text-slate-500 font-medium">Base de Datos</p>
-            <p className="text-lg font-bold text-slate-900">Municipalización</p>
+            <p className="text-lg font-bold text-slate-900">Expedientes</p>
           </div>
         </div>
 
