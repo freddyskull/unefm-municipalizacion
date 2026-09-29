@@ -8,10 +8,12 @@ import {
   flexRender,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import DetailDialog from './DetailDialog'
 import {
   Search,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -50,12 +52,16 @@ export default function DataTable({
   serverPagination = false,
 
   virtualize = true,
-  rowHeight = 44,
-  maxHeight = 560,
+  rowHeight = 34,
+  maxHeight = null,
+  maxHeightOffset = 240,
 
   getRowId,
   footer = null,
   className = '',
+
+  enableDetails = true,
+  detailTitle = 'Detalle del registro',
 }) {
   const columns = useMemo(() => {
     const defs = columnDefs?.length
@@ -131,12 +137,27 @@ export default function DataTable({
     }
     const w = Number(c.getSize())
     const weight = Number.isFinite(w) && w > 0 ? w : 1
-    return Math.min(300, Math.max(80, Math.round(weight * 90)))
+    return Math.min(280, Math.max(72, Math.round(weight * 80)))
   }
   const totalWidth = cols.reduce((s, c) => s + colPx(c), 0)
   const gridTemplate = cols.map((c) => `minmax(${colPx(c)}px, 1fr)`).join(' ')
 
-  const useVirt = virtualize && rows.length > 30
+  const [viewportH, setViewportH] = useState(() =>
+    typeof window !== 'undefined' ? window.innerHeight : 900
+  )
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onResize = () => setViewportH(window.innerHeight)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  const effectiveMaxHeight = Math.max(
+    280,
+    Math.min(1100, maxHeight ?? viewportH - maxHeightOffset)
+  )
+  const totalContentHeight = rows.length * rowHeight
+  const useVirt = virtualize && totalContentHeight > effectiveMaxHeight
   const scrollRef = useRef(null)
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -144,6 +165,16 @@ export default function DataTable({
     estimateSize: () => rowHeight,
     overscan: 10,
   })
+
+  const [detailRow, setDetailRow] = useState(null)
+  useEffect(() => {
+    setDetailRow(null)
+  }, [data])
+
+  const handleRowClick = (row) => {
+    if (!enableDetails) return
+    setDetailRow(row)
+  }
 
   const resetSearch = (val) => {
     setLocalSearch(val)
@@ -187,10 +218,14 @@ export default function DataTable({
       <div
         ref={scrollRef}
         style={{
-          height: useVirt ? Math.min(maxHeight, rows.length * rowHeight + rowHeight) : 'auto',
+          height: useVirt ? effectiveMaxHeight : 'auto',
+          minHeight: rows.length > 0 ? 240 : undefined,
           overflow: 'auto',
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#cbd5e1 transparent',
+          scrollbarGutter: 'stable',
         }}
-        className="relative"
+        className="relative dt-scroll"
       >
         <div style={{ minWidth: totalWidth }}>
           {loading && (
@@ -217,7 +252,7 @@ export default function DataTable({
                   return (
                     <div
                       key={header.id}
-                      className={`px-4 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wider select-none ${cellAlign(header.column.columnDef)} ${canSort ? 'cursor-pointer hover:text-slate-900' : ''}`}
+                      className={`px-4 py-2 text-[11px] font-semibold text-slate-600 uppercase tracking-wider select-none ${cellAlign(header.column.columnDef)} ${canSort ? 'cursor-pointer hover:text-slate-900' : ''}`}
                       style={{ display: 'flex', alignItems: 'center' }}
                       onClick={() => {
                         if (!canSort) return
@@ -250,7 +285,11 @@ export default function DataTable({
                     return (
                       <div
                         key={row.id}
-                        className="grid border-b border-slate-100 hover:bg-slate-50/60 transition-colors text-sm"
+                        data-index={vr.index}
+                        ref={virtualizer.measureElement}
+                        onClick={() => handleRowClick(row)}
+                        title={enableDetails ? 'Ver detalle' : undefined}
+                        className={`grid border-b border-slate-100 hover:bg-slate-50/60 hover:shadow-[inset_2px_0_0_0_theme(colors.unefm.500)] transition-colors text-[13px] ${enableDetails ? 'cursor-pointer' : ''}`}
                         style={{
                           gridTemplateColumns: gridTemplate,
                           position: 'absolute',
@@ -261,7 +300,7 @@ export default function DataTable({
                         }}
                       >
                         {row.getVisibleCells().map((cell) => (
-                          <div key={cell.id} className={`px-4 flex items-center whitespace-nowrap text-slate-700 min-w-0 ${cellAlign(cell.column.columnDef)}`}>
+                          <div key={cell.id} className={`px-4 flex items-center whitespace-nowrap text-[13px] text-slate-700 min-w-0 overflow-hidden ${cellAlign(cell.column.columnDef)}`}>
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                           </div>
                         ))}
@@ -273,11 +312,13 @@ export default function DataTable({
                 rows.map((row) => (
                   <div
                     key={row.id}
-                    className="grid border-b border-slate-100 hover:bg-slate-50/60 transition-colors text-sm"
+                    onClick={() => handleRowClick(row)}
+                    title={enableDetails ? 'Ver detalle' : undefined}
+                    className={`grid border-b border-slate-100 hover:bg-slate-50/60 hover:shadow-[inset_2px_0_0_0_theme(colors.unefm.500)] transition-colors text-[13px] ${enableDetails ? 'cursor-pointer' : ''}`}
                     style={{ gridTemplateColumns: gridTemplate }}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <div key={cell.id} className={`px-4 py-2.5 flex items-center whitespace-nowrap text-slate-700 min-w-0 ${cellAlign(cell.column.columnDef)}`}>
+                      <div key={cell.id} className={`px-4 py-[6px] flex items-center whitespace-nowrap text-[13px] text-slate-700 min-w-0 overflow-hidden ${cellAlign(cell.column.columnDef)}`}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </div>
                     ))}
@@ -291,6 +332,17 @@ export default function DataTable({
           )}
         </div>
       </div>
+
+      {/* Scroll hint when rows are virtualized/overflow */}
+      {useVirt && !loading && (
+        <div className="px-4 py-1.5 bg-unefm-50/70 border-t border-unefm-200 text-[11px] text-unefm-700 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <ChevronDown size={13} className="flex-shrink-0" />
+            Mostrando {pageStart + 1}–{pageEnd} de {displayTotal.toLocaleString()} · desplaza dentro de la tabla para ver más
+          </span>
+          <span className="hidden sm:inline">{rows.length} registros en esta página</span>
+        </div>
+      )}
 
       {/* Pagination */}
       {pageCount > 1 && (
@@ -323,6 +375,15 @@ export default function DataTable({
             <ChevronRight size={14} />
           </button>
         </div>
+      )}
+
+      {/* Detail dialog */}
+      {enableDetails && detailRow && (
+        <DetailDialog
+          title={detailTitle}
+          row={detailRow}
+          onClose={() => setDetailRow(null)}
+        />
       )}
     </div>
   )

@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import api from '../services/api'
 import {
   Wallet,
   AlertCircle,
-  Info,
   TrendingUp,
   FileText,
   User,
@@ -12,12 +11,17 @@ import {
 } from 'lucide-react'
 import ConsultaPersonal from '../components/ConsultaPersonal'
 import DataTable from '../components/DataTable'
+import OracleStatusBanner from '../components/OracleStatusBanner'
+import useOracleHealth from '../hooks/useOracleHealth'
+import { usePersona } from '../context/PersonaContext'
 
 export default function NominasEfectivas() {
   const [nominas, setNominas] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [oracleStatus, setOracleStatus] = useState(null)
+  const { status: oracleStatus, error: healthError, check } = useOracleHealth()
+  const { persona: personaCtx } = usePersona()
+  const autoInitRef = useRef(false)
   const [page, setPage] = useState(0)
   const [total, setTotal] = useState(0)
   const [selected, setSelected] = useState(null)
@@ -49,10 +53,11 @@ export default function NominasEfectivas() {
         })
         setNominas(res.data.nominas || [])
         setTotal(res.data.total || 0)
-        setOracleStatus('connected')
       } catch (err) {
         if (err.response?.status === 503) {
-          setOracleStatus('disconnected')
+          setError(
+            'La base de datos Oracle no está disponible. Se requiere Oracle Instant Client para conectarse al esquema NOMINA/PERSONAL.'
+          )
         } else {
           setError(err.response?.data?.error || 'Error al cargar nóminas')
         }
@@ -73,7 +78,6 @@ export default function NominasEfectivas() {
     setPage(0)
     setPersona({ cedula, tipo })
     setError('')
-    setOracleStatus(null)
     setSearch('')
     setFechaDesde('')
     setFechaHasta('')
@@ -81,6 +85,15 @@ export default function NominasEfectivas() {
     setSortDesc(false)
     setSelected({ cedula, tipo })
   }
+
+  useEffect(() => {
+    if (autoInitRef.current) return
+    autoInitRef.current = true
+    if (!selected && personaCtx?.cedula && personaCtx?.tipo) {
+      handleConsulta(personaCtx.cedula, personaCtx.tipo)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSearch = (value) => {
     setSearch(value)
@@ -91,6 +104,13 @@ export default function NominasEfectivas() {
     setSortKey(key)
     setSortDesc(desc)
     setPage(0)
+  }
+
+  const handleReconnect = async () => {
+    const ok = await check()
+    if (ok && selected) {
+      loadNominas(selected.cedula, selected.tipo, page, search, fechaDesde, fechaHasta, sortKey, sortDesc)
+    }
   }
 
   const tipoLabel = {
@@ -116,11 +136,18 @@ export default function NominasEfectivas() {
       sortable: true,
       size: 2,
       minWidth: 230,
-      cell: (info) => (
-        <span className="font-mono font-medium text-slate-800">
-          {info.getValue()?.trim() || '-'}
-        </span>
-      ),
+      cell: (info) => {
+        const raw = info.getValue()?.trim()
+        if (!raw) return <span className="font-mono font-medium text-slate-800">-</span>
+        const digits = raw.replace(/\D/g, '')
+        const first = raw.slice(0, 4)
+        const last = digits.length > 4 ? digits.slice(-4) : raw.slice(-4)
+        return (
+          <span className="font-mono font-medium text-slate-800">
+            {digits.length > 8 ? `${first}••••${last}` : raw}
+          </span>
+        )
+      },
     },
     {
       id: 'BANCO',
@@ -129,6 +156,15 @@ export default function NominasEfectivas() {
       sortable: true,
       size: 2,
       minWidth: 200,
+      cell: (info) => {
+        const val = info.getValue()
+        if (!val) return '-'
+        return (
+          <span className="truncate max-w-full block text-slate-800 font-medium cursor-help" title={val}>
+            {val}
+          </span>
+        )
+      },
     },
     {
       id: 'FECHANOMINA',
@@ -138,8 +174,40 @@ export default function NominasEfectivas() {
       size: 1.5,
       cell: (info) => info.getValue() || '-',
     },
-    { id: 'DESNOM', accessorKey: 'DESNOM', header: 'Des. Nómina', sortable: true, size: 3, minWidth: 220 },
-    { id: 'DESTIPNOM', accessorKey: 'DESTIPNOM', header: 'Tipo Nómina', sortable: true, size: 2, minWidth: 160 },
+    {
+      id: 'DESNOM',
+      accessorKey: 'DESNOM',
+      header: 'Des. Nómina',
+      sortable: true,
+      size: 3,
+      minWidth: 220,
+      cell: (info) => {
+        const val = info.getValue()
+        if (!val) return '-'
+        return (
+          <span className="truncate max-w-full block text-slate-800 font-medium cursor-help" title={val}>
+            {val}
+          </span>
+        )
+      },
+    },
+    {
+      id: 'DESTIPNOM',
+      accessorKey: 'DESTIPNOM',
+      header: 'Tipo Nómina',
+      sortable: true,
+      size: 2,
+      minWidth: 160,
+      cell: (info) => {
+        const val = info.getValue()
+        if (!val) return '-'
+        return (
+          <span className="truncate max-w-full block text-slate-800 font-medium cursor-help" title={val}>
+            {val}
+          </span>
+        )
+      },
+    },
   ]
 
   return (
@@ -221,18 +289,7 @@ export default function NominasEfectivas() {
         </div>
       )}
 
-      {oracleStatus === 'disconnected' && (
-        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-start gap-3">
-          <Info size={18} className="flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold">Base de datos Oracle no conectada</p>
-            <p className="mt-1 text-amber-700">
-              Se requiere acceso a <code>NOMINA</code> / <code>PERSONAL</code> para consultar las
-              nóminas efectivas.
-            </p>
-          </div>
-        </div>
-      )}
+      <OracleStatusBanner status={oracleStatus} error={healthError} onRetry={handleReconnect} />
 
       {error && oracleStatus !== 'disconnected' && (
         <div className="p-3 rounded-lg bg-danger-50 border border-danger-500/20 text-danger-700 text-sm flex items-center gap-2">
@@ -287,6 +344,8 @@ export default function NominasEfectivas() {
             onSort={handleSort}
             sortKey={sortKey}
             sortDesc={sortDesc}
+            maxHeightOffset={540}
+            detailTitle="Detalle de nómina efectiva"
             getRowId={(row, i) => `n-${i}`}
             emptyMessage="No se encontraron nóminas efectivas para esta cédula."
             emptyIcon={Wallet}

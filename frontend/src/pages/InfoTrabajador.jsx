@@ -1,24 +1,29 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import api from '../services/api'
 import {
   UserCircle,
   Loader2,
   AlertCircle,
-  Info,
   Briefcase,
   Calendar,
   Users,
   User,
+  Info,
 } from 'lucide-react'
 import ConsultaPersonal from '../components/ConsultaPersonal'
 import DataTable from '../components/DataTable'
+import OracleStatusBanner from '../components/OracleStatusBanner'
+import useOracleHealth from '../hooks/useOracleHealth'
+import { usePersona } from '../context/PersonaContext'
 
 export default function InfoTrabajador() {
   const [perfil, setPerfil] = useState(null)
   const [familiares, setFamiliares] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [oracleStatus, setOracleStatus] = useState(null)
+  const { status: oracleStatus, error: healthError, check } = useOracleHealth()
+  const { persona: personaCtx } = usePersona()
+  const autoInitRef = useRef(false)
   const [selected, setSelected] = useState(null)
   const [persona, setPersona] = useState(null)
 
@@ -48,10 +53,11 @@ export default function InfoTrabajador() {
       ])
       setPerfil(perfilRes.data.trabajador || null)
       setFamiliares(famRes.data.familiares || [])
-      setOracleStatus('connected')
     } catch (err) {
       if (err.response?.status === 503) {
-        setOracleStatus('disconnected')
+        setError(
+          'La base de datos Oracle no está disponible. Se requiere Oracle Instant Client para conectarse al esquema NOMINA/PERSONAL.'
+        )
       } else {
         setError(
           err.response?.data?.error || 'Error al cargar información del trabajador'
@@ -72,9 +78,24 @@ export default function InfoTrabajador() {
     setPerfil(null)
     setFamiliares([])
     setError('')
-    setOracleStatus(null)
     setPersona({ cedula, tipo })
     setSelected({ cedula, tipo })
+  }
+
+  useEffect(() => {
+    if (autoInitRef.current) return
+    autoInitRef.current = true
+    if (!selected && personaCtx?.cedula && personaCtx?.tipo) {
+      handleConsulta(personaCtx.cedula, personaCtx.tipo)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleReconnect = async () => {
+    const ok = await check()
+    if (ok && selected) {
+      loadData(selected.cedula, selected.tipo)
+    }
   }
 
   const tipoLabel = {
@@ -124,18 +145,7 @@ export default function InfoTrabajador() {
         </div>
       )}
 
-      {oracleStatus === 'disconnected' && (
-        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-start gap-3">
-          <Info size={18} className="flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold">Base de datos Oracle no conectada</p>
-            <p className="mt-1 text-amber-700">
-              Se requiere acceso a los esquemas <code>PERSONAL</code> y <code>NOMINA</code> para
-              consultar la información del trabajador.
-            </p>
-          </div>
-        </div>
-      )}
+      <OracleStatusBanner status={oracleStatus} error={healthError} onRetry={handleReconnect} />
 
       {error && oracleStatus !== 'disconnected' && (
         <div className="p-3 rounded-lg bg-danger-50 border border-danger-500/20 text-danger-700 text-sm flex items-center gap-2">
@@ -160,6 +170,12 @@ export default function InfoTrabajador() {
               ) : perfil ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <InfoField icon={<User size={16} />} label="Cédula" value={perfil.CEDEMP} />
+                  <InfoField
+                    icon={<Info size={16} />}
+                    label="Estatus del Personal"
+                  >
+                    <EstatusBadge estatus={perfil.ESTATUS} />
+                  </InfoField>
                   <InfoField
                     icon={<UserCircle size={16} />}
                     label="Nombre"
@@ -213,6 +229,7 @@ export default function InfoTrabajador() {
                   columns={familiaresColumns}
                   data={familiaresData}
                   getRowId={(row, i) => `f-${i}`}
+                  detailTitle="Detalle del familiar"
                   emptyMessage="Sin carga familiar registrada."
                   emptyIcon={Users}
                 />
@@ -225,18 +242,41 @@ export default function InfoTrabajador() {
   )
 }
 
-function InfoField({ icon, label, value, truncate = false }) {
+const ESTATUS_STYLES = {
+  ACTIVO: 'bg-success-50 text-success-700 border-success-200',
+  INACTIVO: 'bg-danger-50 text-danger-700 border-danger-200',
+  FIN_DE_CONTRATO: 'bg-danger-50 text-danger-700 border-danger-200',
+  DEFAULT: 'bg-amber-50 text-amber-700 border-amber-200',
+}
+
+function EstatusBadge({ estatus }) {
+  const key = estatus?.toUpperCase()
+  const style =
+    ESTATUS_STYLES[key] ||
+    (String(key).startsWith('PENSIONADO') ? ESTATUS_STYLES.DEFAULT : ESTATUS_STYLES.DEFAULT)
+  return estatus ? (
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${style}`}>
+      {estatus}
+    </span>
+  ) : (
+    <span className="text-slate-400">-</span>
+  )
+}
+
+function InfoField({ icon, label, value, truncate = false, children }) {
   return (
     <div className="flex items-start gap-3 min-w-0">
       <div className="text-slate-400 mt-1 flex-shrink-0">{icon}</div>
       <div className="min-w-0 flex-1">
         <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
-        <p
-          className={`text-slate-800 font-medium ${truncate ? 'truncate max-w-full block cursor-help' : ''}`}
-          title={truncate && typeof value === 'string' ? value : undefined}
-        >
-          {value || '-'}
-        </p>
+        {children || (
+          <p
+            className={`text-slate-800 font-medium ${truncate ? 'truncate max-w-full block cursor-help' : ''}`}
+            title={truncate && typeof value === 'string' ? value : undefined}
+          >
+            {value || '-'}
+          </p>
+        )}
       </div>
     </div>
   )

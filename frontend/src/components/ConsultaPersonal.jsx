@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import api from '../services/api'
 import { Search, AlertCircle, Loader2 } from 'lucide-react'
+import { usePersona } from '../context/PersonaContext'
 
 const TIPOS_PERSONAL = [
   { value: '01', label: 'Docente e Investigación' },
@@ -9,11 +10,20 @@ const TIPOS_PERSONAL = [
 ]
 
 export default function ConsultaPersonal({ onConsulta, disabled }) {
-  const [cedula, setCedula] = useState('')
-  const [tipo, setTipo] = useState('')
+  const { persona: personaCtx, setPersona } = usePersona()
+  const [cedula, setCedula] = useState(personaCtx?.cedula || '')
+  const [tipo, setTipo] = useState(personaCtx?.tipo || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [personas, setPersonas] = useState(null)
+
+  useEffect(() => {
+    if (personaCtx?.cedula) {
+      setCedula(personaCtx.cedula)
+      setTipo(personaCtx.tipo || '')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleConsultar = async (e) => {
     e.preventDefault()
@@ -42,6 +52,7 @@ export default function ConsultaPersonal({ onConsulta, disabled }) {
       }
       if (empleados.length === 1) {
         const p = empleados[0]
+        setPersona({ cedula: p.CEDEMP, tipo: p.TIPOPER })
         onConsulta(p.CEDEMP, p.TIPOPER)
       } else {
         setPersonas(empleados)
@@ -54,6 +65,7 @@ export default function ConsultaPersonal({ onConsulta, disabled }) {
   }
 
   const handleSeleccionarPersona = (cedulaSeleccionada, tipoSeleccionado) => {
+    setPersona({ cedula: cedulaSeleccionada, tipo: tipoSeleccionado })
     onConsulta(cedulaSeleccionada, tipoSeleccionado)
   }
 

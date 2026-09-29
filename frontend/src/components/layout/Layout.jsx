@@ -5,6 +5,7 @@ import Header from './Header'
 const pageTitles = {
   '/': 'Dashboard',
   '/contratos': 'Contratos',
+  '/permisos': 'Permisos y Reposos',
   '/nominas-efectivas': 'Nóminas Efectivas',
   '/info-trabajador': 'Info. Trabajador',
   '/nominas-pago': 'Nóminas de Pago',

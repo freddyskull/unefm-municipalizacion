@@ -8,6 +8,7 @@ import Usuarios from './pages/Usuarios'
 import Reportes from './pages/Reportes'
 import Configuracion from './pages/Configuracion'
 import Contratos from './pages/Contratos'
+import Permisos from './pages/Permisos'
 import NominasEfectivas from './pages/NominasEfectivas'
 import InfoTrabajador from './pages/InfoTrabajador'
 import NominasPago from './pages/NominasPago'
@@ -38,6 +39,7 @@ function App() {
       >
         <Route index element={<Navigate to="/contratos" replace />} />
         <Route path="contratos" element={<Contratos />} />
+        <Route path="permisos" element={<Permisos />} />
         <Route path="nominas-efectivas" element={<NominasEfectivas />} />
         <Route path="info-trabajador" element={<InfoTrabajador />} />
         <Route path="nominas-pago" element={<NominasPago />} />

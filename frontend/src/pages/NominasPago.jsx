@@ -3,17 +3,20 @@ import api from '../services/api'
 import {
   FileBarChart,
   AlertCircle,
-  Info,
   DollarSign,
   RotateCcw,
 } from 'lucide-react'
 import DataTable from '../components/DataTable'
+import OracleStatusBanner from '../components/OracleStatusBanner'
+import useOracleHealth from '../hooks/useOracleHealth'
+import { usePersona } from '../context/PersonaContext'
 
 export default function NominasPago() {
   const [nominas, setNominas] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [status, setStatus] = useState(null)
+  const { status, error: healthError, check } = useOracleHealth()
+  const { persona: personaCtx, setPersona: setPersonaCtx } = usePersona()
   const [selectedMes, setSelectedMes] = useState('')
   const [meses, setMeses] = useState([])
   const [page, setPage] = useState(0)
@@ -91,6 +94,13 @@ export default function NominasPago() {
   }, [])
 
   useEffect(() => {
+    if (personaCtx?.cedula) {
+      setCedula(personaCtx.cedula)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
     if (selectedMes && cedula) {
       loadNominas(0, '', '', false, cedula)
       setSearch('')
@@ -111,11 +121,8 @@ export default function NominasPago() {
     try {
       const res = await api.get('/oracle/meses')
       setMeses(res.data.meses || [])
-      setStatus('connected')
     } catch (err) {
-      if (err.response?.status === 503) {
-        setStatus('disconnected')
-      }
+      // Los problemas de conexión se reflejan en el banner de salud de Oracle.
     }
   }
 
@@ -175,6 +182,15 @@ export default function NominasPago() {
     loadNominas(p, search, sortKey, sortDesc, cedula)
   }
 
+  const handleReconnect = async () => {
+    const ok = await check()
+    if (!ok) return
+    await loadMeses()
+    if (selectedMes && cedula) {
+      loadNominas(page, search, sortKey, sortDesc, cedula)
+    }
+  }
+
   const fmt = (n) =>
     Number(n).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -197,17 +213,7 @@ export default function NominasPago() {
         </div>
       </div>
 
-      {status === 'disconnected' && (
-        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-start gap-3">
-          <Info size={18} className="flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold">Base de datos Oracle no conectada</p>
-            <p className="mt-1 text-amber-700">
-              Se requiere acceso a <code>NOMINA</code> para consultar las nóminas de pago.
-            </p>
-          </div>
-        </div>
-      )}
+      <OracleStatusBanner status={status} error={healthError} onRetry={handleReconnect} />
 
       {/* Selector de período y cédula */}
       {status === 'connected' && (
@@ -238,13 +244,17 @@ export default function NominasPago() {
                   className="input sm:w-52"
                   placeholder="Ej: 12345678"
                   value={cedula}
-                  onChange={(e) => setCedula(e.target.value.trim())}
+                  onChange={(e) => {
+                    const v = e.target.value.trim()
+                    setCedula(v)
+                    setPersonaCtx({ cedula: v, tipo: personaCtx?.tipo || undefined })
+                  }}
                 />
               </div>
               <button
                 type="button"
                 className="btn-secondary text-xs"
-                onClick={() => { setSelectedMes(''); setCedula('') }}
+                onClick={() => { setSelectedMes(''); setCedula(''); setPersonaCtx(null) }}
               >
                 <RotateCcw size={14} />
                 Limpiar
@@ -325,6 +335,8 @@ export default function NominasPago() {
               onSort={handleSort}
               sortKey={sortKey}
               sortDesc={sortDesc}
+              maxHeightOffset={520}
+              detailTitle="Detalle del concepto"
               getRowId={(row, i) => `p-${i}`}
               emptyMessage="No se encontraron nóminas de pago para esta cédula en el período seleccionado."
               emptyIcon={FileBarChart}
